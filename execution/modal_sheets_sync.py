@@ -1,36 +1,34 @@
 """
 Modal backend for SOS Mastermind — Inbound Closing dashboard.
 
-Architecture:
-  - daily_sync(): scheduled cron (6 AM UTC daily) — reads Google Sheet, stores in Modal Dict
-  - serve_data(): web endpoint — returns cached data as JSON, fetches live on cold start
+Auth: OAuth 2.0 user credentials (refresh token stored in Modal secret).
+Run execution/setup_google_oauth.py once to authorize and store the token.
 
-Setup:
-  1. Create Google Cloud service account with Sheets API access
-  2. Share sheet with service account email
-  3. modal secret create google-sheets-creds GOOGLE_SERVICE_ACCOUNT_JSON='$(cat /path/to/key.json)'
-  4. modal deploy execution/modal_sheets_sync.py
+Functions:
+  daily_sync()  — scheduled cron (6 AM UTC), reads sheet, caches in Modal Dict
+  serve_data()  — web endpoint, returns cached JSON (fetches live on cold start)
 
-To force a refresh:
-  modal run execution/modal_sheets_sync.py::daily_sync
+Deploy:
+  python3 execution/setup_google_oauth.py   # one-time auth
+  modal deploy execution/modal_sheets_sync.py
 """
 
 import modal
+import json
 import os
 from datetime import datetime
 
 app = modal.App("sales-dashboard")
 
 image = modal.Image.debian_slim().pip_install(
-    ["google-auth", "google-api-python-client", "google-auth-httplib2"]
+    ["google-auth", "google-api-python-client", "google-auth-httplib2", "fastapi"]
 )
 
 data_store = modal.Dict.from_name("sales-dashboard-data", create_if_missing=True)
 
 SPREADSHEET_ID = "1BWzEYMPZVCNTU_u_aL8xJF09uBN2Z2hiS77FVWucKNo"
-SHEET_RANGE = "Inbound Closing"
+SHEET_NAME = "Inbound Closing"
 
-# Column order (0-indexed) as they appear in the sheet
 COLUMNS = [
     "rep_name", "date", "outbound_calls_made", "outbound_calls_booked",
     "calls_booked_on_calendar", "calls_rescheduled", "calls_cancelled",
@@ -52,7 +50,6 @@ INT_FIELDS = {
     "dqs", "deposits", "closes", "upsells",
 }
 
-# Words that indicate a row is NOT a rep name (e.g., objection text bleed-over)
 REJECT_WORDS = {
     "total", "average", "avg", "objection", "how", "what", "why", "when",
     "note", "summary", "follow", "calls", "booked", "cancelled", "closed",
@@ -62,92 +59,71 @@ REJECT_WORDS = {
 
 
 def is_valid_rep_name(val: str) -> bool:
-    """
-    Determines if a cell value is a valid closer name.
-    Rejects: empty, numeric, dollar amounts, objection text bleed-over,
-             rows that start with lowercase, rows with digits.
-    """
     if not val or not val.strip():
         return False
     val = val.strip()
-
-    # Reject dollar amounts
     if val.startswith("$"):
         return False
-
-    # Reject pure numbers
     try:
         float(val.replace(",", "").replace("$", ""))
         return False
     except ValueError:
         pass
-
-    # Reject if contains any digit (rep names don't have numbers)
     if any(c.isdigit() for c in val):
         return False
-
-    # Must start with uppercase (proper name)
     if not val[0].isupper():
         return False
-
-    # Too long to be a personal name (catches sentence bleed-over)
-    words = val.split()
-    if len(words) > 4:
+    if len(val.split()) > 4:
         return False
-
-    # Reject if first word matches known non-name patterns
-    if words[0].lower() in REJECT_WORDS:
+    if val.split()[0].lower() in REJECT_WORDS:
         return False
-
     return True
 
 
 def parse_money(val) -> float:
-    """Parse a dollar value like '$1,234.56' or '1234' to float."""
     if not val:
         return 0.0
     try:
-        cleaned = str(val).replace("$", "").replace(",", "").strip()
-        return float(cleaned) if cleaned else 0.0
+        return float(str(val).replace("$", "").replace(",", "").strip() or 0)
     except (ValueError, TypeError):
         return 0.0
 
 
 def parse_int(val) -> int:
-    """Parse an integer value, handling commas and floats."""
     if not val:
         return 0
     try:
-        cleaned = str(val).replace(",", "").strip()
-        return int(float(cleaned)) if cleaned else 0
+        return int(float(str(val).replace(",", "").strip() or 0))
     except (ValueError, TypeError):
         return 0
 
 
-def fetch_sheet_data() -> list[dict]:
-    """
-    Reads the Inbound Closing tab from Google Sheets.
-    Returns a list of dicts with parsed and cleaned row data.
-    Filters out any rows where col[0] is not a valid rep name.
-    """
-    import json
-    from google.oauth2.service_account import Credentials
+def get_sheets_service():
+    """Builds a Google Sheets API service using the stored OAuth refresh token."""
+    from google.oauth2.credentials import Credentials
     from googleapiclient.discovery import build
 
-    creds_json = os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"]
-    creds = Credentials.from_service_account_info(
-        json.loads(creds_json),
+    token_data = json.loads(os.environ["GOOGLE_OAUTH_TOKEN"])
+    creds = Credentials(
+        token=None,
+        refresh_token=token_data["refresh_token"],
+        client_id=token_data["client_id"],
+        client_secret=token_data["client_secret"],
+        token_uri=token_data["token_uri"],
         scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"],
     )
-    service = build("sheets", "v4", credentials=creds)
+    return build("sheets", "v4", credentials=creds)
 
+
+def fetch_sheet_data() -> list:
+    """Reads the Inbound Closing tab and returns a list of parsed row dicts."""
+    service = get_sheets_service()
     result = (
         service.spreadsheets()
         .values()
-        .get(spreadsheetId=SPREADSHEET_ID, range=SHEET_RANGE)
+        .get(spreadsheetId=SPREADSHEET_ID, range=SHEET_NAME)
         .execute()
     )
-
     rows = result.get("values", [])
     if not rows or len(rows) < 2:
         print("No data found in sheet")
@@ -155,17 +131,13 @@ def fetch_sheet_data() -> list[dict]:
 
     records = []
     skipped = 0
-
-    for row in rows[1:]:  # Skip header row
-        # Pad to 19 columns so index access is always safe
+    for row in rows[1:]:  # skip header
         padded = (row + [""] * 19)[:19]
-
         rep = padded[0].strip() if padded[0] else ""
         if not is_valid_rep_name(rep):
             skipped += 1
             continue
-
-        record = {}
+        record: dict = {}
         for i, col in enumerate(COLUMNS):
             val = padded[i] if i < len(padded) else ""
             if col == "rep_name":
@@ -176,7 +148,6 @@ def fetch_sheet_data() -> list[dict]:
                 record[col] = parse_int(val)
             else:
                 record[col] = str(val).strip()
-
         records.append(record)
 
     print(f"Parsed {len(records)} records, skipped {skipped} non-rep rows")
@@ -185,54 +156,32 @@ def fetch_sheet_data() -> list[dict]:
 
 @app.function(
     image=image,
-    secrets=[modal.Secret.from_name("google-sheets-creds")],
+    secrets=[modal.Secret.from_name("google-sheets-oauth")],
     schedule=modal.Cron("0 6 * * *"),
 )
 def daily_sync():
-    """
-    Scheduled cron: runs daily at 6 AM UTC.
-    Reads the Google Sheet and stores parsed data in the Modal Dict.
-    """
+    """Runs daily at 6 AM UTC — refreshes cached data from Google Sheets."""
     records = fetch_sheet_data()
     data_store["inbound_closing"] = records
     data_store["last_sync"] = datetime.utcnow().isoformat()
-    print(f"Daily sync complete: {len(records)} records stored")
+    print(f"Sync complete: {len(records)} records")
 
 
 @app.function(
     image=image,
-    secrets=[modal.Secret.from_name("google-sheets-creds")],
+    secrets=[modal.Secret.from_name("google-sheets-oauth")],
 )
-@modal.web_endpoint(method="GET")
+@modal.fastapi_endpoint(method="GET")
 def serve_data():
-    """
-    Web endpoint: returns the cached data as JSON.
-    On first call (cold start / no cache), fetches live from Google Sheets.
-    """
-    from fastapi.responses import JSONResponse
-
-    CORS_HEADERS = {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-    }
-
+    """Returns cached sales data as JSON. Fetches live on first call."""
     records = data_store.get("inbound_closing")
     last_sync = data_store.get("last_sync", "")
 
     if records is None:
-        # First run or cache cleared — fetch live
-        print("Cache miss: fetching live data from Google Sheets")
+        print("Cache empty — fetching live data")
         records = fetch_sheet_data()
         data_store["inbound_closing"] = records
         last_sync = datetime.utcnow().isoformat()
         data_store["last_sync"] = last_sync
 
-    return JSONResponse(
-        content={
-            "data": records,
-            "last_sync": last_sync,
-            "count": len(records),
-        },
-        headers=CORS_HEADERS,
-    )
+    return {"data": records, "last_sync": last_sync, "count": len(records)}
