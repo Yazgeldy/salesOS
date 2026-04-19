@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { RepStats } from '../lib/types';
-import { formatCurrency, formatPercent, formatNumber, getHeatmapColor } from '../lib/utils';
+import { aggregateAll, formatCurrency, formatPercent, formatNumber, getHeatmapColor } from '../lib/utils';
 
 interface KpiRowDef {
   key: keyof RepStats;
@@ -58,6 +58,8 @@ export default function HeatmapView({ repStats }: HeatmapViewProps) {
     return sortDir === 'desc' ? bv - av : av - bv;
   });
 
+  const totals = useMemo(() => aggregateAll(repStats), [repStats]);
+
   function handleKpiClick(key: keyof RepStats) {
     if (sortKpi === key) {
       setSortDir(d => (d === 'desc' ? 'asc' : 'desc'));
@@ -69,7 +71,7 @@ export default function HeatmapView({ repStats }: HeatmapViewProps) {
 
   return (
     <div className="overflow-x-auto rounded-lg border border-[#2a2b38]">
-      <table className="text-xs border-collapse" style={{ minWidth: `${160 + sortedReps.length * 130}px` }}>
+      <table className="text-xs border-collapse" style={{ minWidth: `${160 + (sortedReps.length + 1) * 130}px` }}>
         <thead>
           <tr>
             {/* KPI label header */}
@@ -85,6 +87,10 @@ export default function HeatmapView({ repStats }: HeatmapViewProps) {
                 {rep.rep_name}
               </th>
             ))}
+            {/* Team total header */}
+            <th className="sticky right-0 z-20 bg-[#0d0e15] border-l border-b border-[#2a2b38] px-3 py-3 text-center text-[10px] font-semibold text-[#6b7280] uppercase tracking-widest whitespace-nowrap">
+              Team Total
+            </th>
           </tr>
         </thead>
 
@@ -94,6 +100,7 @@ export default function HeatmapView({ repStats }: HeatmapViewProps) {
             const min      = Math.min(...values);
             const max      = Math.max(...values);
             const isActive = sortKpi === key;
+            const totalValue = (totals[key] as number) ?? 0;
 
             return (
               <tr
@@ -128,13 +135,22 @@ export default function HeatmapView({ repStats }: HeatmapViewProps) {
                   return (
                     <td
                       key={rep.rep_name}
-                      className="px-3 py-2.5 text-center font-mono tabular-nums text-[11px] text-[#e8e9f0] whitespace-nowrap"
+                      className="px-3 py-2.5 text-center font-mono tabular-nums text-[11px] text-white whitespace-nowrap"
                       style={{ backgroundColor: bgColor }}
                     >
                       {fmtValue(value, format)}
                     </td>
                   );
                 })}
+
+                {/* Team total cell — sticky right, neutral style */}
+                <td
+                  className={`sticky right-0 z-10 border-l border-[#2a2b38] px-3 py-2.5 text-center font-mono tabular-nums text-[11px] font-semibold text-[#e8e9f0] whitespace-nowrap ${
+                    isActive ? 'bg-[#141520]' : 'bg-[#0d0e15]'
+                  }`}
+                >
+                  {fmtValue(totalValue, format)}
+                </td>
               </tr>
             );
           })}

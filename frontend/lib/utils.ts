@@ -147,12 +147,11 @@ export function aggregateAll(repStats: RepStats[]): RepStats {
 
 /**
  * Returns an rgba background color for a heatmap cell.
- * Each row is a green → yellow → red gradient: best value is green, worst is red.
- * For lower-is-better metrics, the gradient is reversed.
+ * Each row fades from dark green (best) through progressively darker greens to
+ * black (worst). For lower-is-better metrics, the gradient is reversed.
  */
-const HEATMAP_RED:    [number, number, number] = [220,  38,  38]; // tailwind red-600
-const HEATMAP_YELLOW: [number, number, number] = [202, 138,   4]; // tailwind yellow-600
-const HEATMAP_GREEN:  [number, number, number] = [ 22, 163,  74]; // tailwind green-600
+const HEATMAP_GREEN: [number, number, number] = [ 22, 163,  74]; // tailwind green-600
+const HEATMAP_BLACK: [number, number, number] = [  0,   0,   0];
 
 function lerpChannel(a: number, b: number, t: number): number {
   return Math.round(a + (b - a) * t);
@@ -170,10 +169,8 @@ export function getHeatmapColor(value: number, min: number, max: number, higherI
   if (max === min) return 'rgba(120, 120, 120, 0.20)';
   let ratio = (value - min) / (max - min);  // 0 = min, 1 = max
   if (!higherIsBetter) ratio = 1 - ratio;   // flip so 1 always = "good"
-  const rgb = ratio < 0.5
-    ? lerpRgb(HEATMAP_RED,    HEATMAP_YELLOW, ratio * 2)
-    : lerpRgb(HEATMAP_YELLOW, HEATMAP_GREEN,  (ratio - 0.5) * 2);
-  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.85)`;
+  const rgb = lerpRgb(HEATMAP_BLACK, HEATMAP_GREEN, ratio);
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.95)`;
 }
 
 // ─── Formatting ────────────────────────────────────────────────────────────────
