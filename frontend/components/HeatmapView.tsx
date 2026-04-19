@@ -31,6 +31,7 @@ const KPI_ROWS: KpiRowDef[] = [
   { key: 'calls_cancelled',            label: 'Cancelled',             higherIsBetter: false, format: 'number'   },
   { key: 'calls_rescheduled',          label: 'Rescheduled',           higherIsBetter: false, format: 'number'   },
   { key: 'dqs',                        label: 'DQs',                   higherIsBetter: false, format: 'number'   },
+  { key: 'dq_rate',                    label: 'DQ Rate',               higherIsBetter: false, format: 'percent'  },
   { key: 'upsells',                    label: 'Upsell Count',          higherIsBetter: true,  format: 'number'   },
   { key: 'contract_value_per_day',     label: 'Contract Value/Day',    higherIsBetter: true,  format: 'currency' },
   { key: 'cash_per_day',               label: 'Cash/Day',              higherIsBetter: true,  format: 'currency' },

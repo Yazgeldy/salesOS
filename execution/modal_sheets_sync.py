@@ -16,11 +16,11 @@ Deploy:
 import modal
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 app = modal.App("sales-dashboard")
 
-image = modal.Image.debian_slim().pip_install(
+image = modal.Image.debian_slim(python_version="3.12").pip_install(
     ["google-auth", "google-api-python-client", "google-auth-httplib2", "fastapi"]
 )
 
@@ -163,7 +163,7 @@ def daily_sync():
     """Runs daily at 6 AM UTC — refreshes cached data from Google Sheets."""
     records = fetch_sheet_data()
     data_store["inbound_closing"] = records
-    data_store["last_sync"] = datetime.utcnow().isoformat()
+    data_store["last_sync"] = datetime.now(timezone.utc).isoformat()
     print(f"Sync complete: {len(records)} records")
 
 
@@ -181,7 +181,7 @@ def serve_data():
         print("Cache empty — fetching live data")
         records = fetch_sheet_data()
         data_store["inbound_closing"] = records
-        last_sync = datetime.utcnow().isoformat()
+        last_sync = datetime.now(timezone.utc).isoformat()
         data_store["last_sync"] = last_sync
 
     return {"data": records, "last_sync": last_sync, "count": len(records)}
