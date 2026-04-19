@@ -93,7 +93,7 @@ export default function KPICards({ totals }: KPICardsProps) {
         <KPICard
           title="Avg Deal Size"
           value={formatCurrency(totals.avg_deal_size)}
-          subtitle="Contract value / close"
+          subtitle="Cash collected / close"
         />
         <KPICard
           title="Outbound Dials"

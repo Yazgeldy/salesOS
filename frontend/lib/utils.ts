@@ -87,7 +87,7 @@ function computeRates(sums: Record<SumKey, number>, days: number): Pick<RepStats
     show_rate:              sums.calls_booked_on_calendar > 0 ? sums.calls_shown_up      / sums.calls_booked_on_calendar : 0,
     offer_rate:             sums.calls_shown_up > 0          ? sums.offers_made         / sums.calls_shown_up           : 0,
     dq_rate:                sums.calls_shown_up > 0          ? sums.dqs                 / sums.calls_shown_up           : 0,
-    avg_deal_size:          sums.closes > 0                  ? sums.total_revenue_generated / sums.closes               : 0,
+    avg_deal_size:          sums.closes > 0                  ? sums.new_cash_collected      / sums.closes               : 0,
     contract_value_per_day: days > 0                         ? sums.total_revenue_generated / days                      : 0,
     cash_per_day:           days > 0                         ? sums.new_cash_collected   / days                         : 0,
   };
@@ -147,16 +147,33 @@ export function aggregateAll(repStats: RepStats[]): RepStats {
 
 /**
  * Returns an rgba background color for a heatmap cell.
- * Higher-is-better → green intensity. Lower-is-better → red intensity.
- * Opacity range: 0.05 (weakest) to 0.70 (strongest).
+ * Each row is a green → yellow → red gradient: best value is green, worst is red.
+ * For lower-is-better metrics, the gradient is reversed.
  */
+const HEATMAP_RED:    [number, number, number] = [220,  38,  38]; // tailwind red-600
+const HEATMAP_YELLOW: [number, number, number] = [202, 138,   4]; // tailwind yellow-600
+const HEATMAP_GREEN:  [number, number, number] = [ 22, 163,  74]; // tailwind green-600
+
+function lerpChannel(a: number, b: number, t: number): number {
+  return Math.round(a + (b - a) * t);
+}
+
+function lerpRgb(
+  c1: [number, number, number],
+  c2: [number, number, number],
+  t: number,
+): [number, number, number] {
+  return [lerpChannel(c1[0], c2[0], t), lerpChannel(c1[1], c2[1], t), lerpChannel(c1[2], c2[2], t)];
+}
+
 export function getHeatmapColor(value: number, min: number, max: number, higherIsBetter: boolean): string {
-  if (max === min) return 'transparent';
-  const ratio = (value - min) / (max - min);
-  const opacity = 0.05 + ratio * 0.65;
-  return higherIsBetter
-    ? `rgba(34, 197, 94, ${opacity.toFixed(3)})`   // green
-    : `rgba(239, 68, 68, ${opacity.toFixed(3)})`;   // red
+  if (max === min) return 'rgba(120, 120, 120, 0.20)';
+  let ratio = (value - min) / (max - min);  // 0 = min, 1 = max
+  if (!higherIsBetter) ratio = 1 - ratio;   // flip so 1 always = "good"
+  const rgb = ratio < 0.5
+    ? lerpRgb(HEATMAP_RED,    HEATMAP_YELLOW, ratio * 2)
+    : lerpRgb(HEATMAP_YELLOW, HEATMAP_GREEN,  (ratio - 0.5) * 2);
+  return `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.85)`;
 }
 
 // ─── Formatting ────────────────────────────────────────────────────────────────

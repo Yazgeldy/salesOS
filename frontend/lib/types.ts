@@ -47,7 +47,7 @@ export interface RepStats {
   show_rate: number;              // calls_shown_up / calls_booked_on_calendar
   offer_rate: number;             // offers_made / calls_shown_up
   dq_rate: number;                // dqs / calls_shown_up
-  avg_deal_size: number;          // total_revenue_generated / closes
+  avg_deal_size: number;          // new_cash_collected / closes
   contract_value_per_day: number; // total_revenue_generated / days_tracked
   cash_per_day: number;           // new_cash_collected / days_tracked
 }
