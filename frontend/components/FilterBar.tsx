@@ -15,6 +15,7 @@ const DATE_PRESETS: { label: string; value: DateRangeOption }[] = [
   { label: '2M',       value: '2m'     },
   { label: '3M',       value: '3m'     },
   { label: '6M',       value: '6m'     },
+  { label: 'MTD',      value: 'mtd'    },
   { label: 'Custom',   value: 'custom' },
 ];
 

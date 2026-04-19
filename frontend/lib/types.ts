@@ -46,6 +46,7 @@ export interface RepStats {
   close_rate: number;             // closes / calls_shown_up
   show_rate: number;              // calls_shown_up / calls_booked_on_calendar
   offer_rate: number;             // offers_made / calls_shown_up
+  dq_rate: number;                // dqs / calls_shown_up
   avg_deal_size: number;          // total_revenue_generated / closes
   contract_value_per_day: number; // total_revenue_generated / days_tracked
   cash_per_day: number;           // new_cash_collected / days_tracked
@@ -66,5 +67,5 @@ export interface FilterState {
   customEnd: string;        // ISO date string
 }
 
-export type DateRangeOption = 'all' | '1m' | '2m' | '3m' | '6m' | 'custom';
+export type DateRangeOption = 'all' | '1m' | '2m' | '3m' | '6m' | 'mtd' | 'custom';
 export type ViewMode = 'heatmap' | 'charts' | 'leaderboard';

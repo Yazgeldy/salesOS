@@ -1,4 +1,4 @@
-import { parse, parseISO, isValid, subMonths, startOfDay, endOfDay, isAfter, isBefore } from 'date-fns';
+import { parse, parseISO, isValid, subMonths, startOfMonth, startOfDay, endOfDay, isAfter, isBefore } from 'date-fns';
 import type { SalesRow, RepStats, FilterState } from './types';
 
 // ─── Date Helpers ──────────────────────────────────────────────────────────────
@@ -36,6 +36,7 @@ function getDateRange(option: string, customStart?: string, customEnd?: string):
     case '2m':    return [subMonths(now, 2), now];
     case '3m':    return [subMonths(now, 3), now];
     case '6m':    return [subMonths(now, 6), now];
+    case 'mtd':   return [startOfMonth(now), now];
     case 'custom': {
       const start = customStart ? parseDate(customStart) : null;
       const end   = customEnd   ? parseDate(customEnd)   : null;
@@ -80,11 +81,12 @@ const SUM_FIELDS = [
 
 type SumKey = typeof SUM_FIELDS[number];
 
-function computeRates(sums: Record<SumKey, number>, days: number): Pick<RepStats, 'close_rate' | 'show_rate' | 'offer_rate' | 'avg_deal_size' | 'contract_value_per_day' | 'cash_per_day'> {
+function computeRates(sums: Record<SumKey, number>, days: number): Pick<RepStats, 'close_rate' | 'show_rate' | 'offer_rate' | 'dq_rate' | 'avg_deal_size' | 'contract_value_per_day' | 'cash_per_day'> {
   return {
     close_rate:             sums.calls_shown_up > 0          ? sums.closes              / sums.calls_shown_up           : 0,
     show_rate:              sums.calls_booked_on_calendar > 0 ? sums.calls_shown_up      / sums.calls_booked_on_calendar : 0,
     offer_rate:             sums.calls_shown_up > 0          ? sums.offers_made         / sums.calls_shown_up           : 0,
+    dq_rate:                sums.calls_shown_up > 0          ? sums.dqs                 / sums.calls_shown_up           : 0,
     avg_deal_size:          sums.closes > 0                  ? sums.total_revenue_generated / sums.closes               : 0,
     contract_value_per_day: days > 0                         ? sums.total_revenue_generated / days                      : 0,
     cash_per_day:           days > 0                         ? sums.new_cash_collected   / days                         : 0,
