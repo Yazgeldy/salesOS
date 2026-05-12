@@ -81,15 +81,16 @@ const SUM_FIELDS = [
 
 type SumKey = typeof SUM_FIELDS[number];
 
-function computeRates(sums: Record<SumKey, number>, days: number): Pick<RepStats, 'close_rate' | 'show_rate' | 'offer_rate' | 'dq_rate' | 'avg_deal_size' | 'contract_value_per_day' | 'cash_per_day'> {
+function computeRates(sums: Record<SumKey, number>): Pick<RepStats, 'close_rate' | 'show_rate' | 'show_rate_ex_cancellations' | 'offer_rate' | 'dq_rate' | 'avg_deal_size' | 'cash_per_call_booked'> {
+  const bookedExCancelled = sums.calls_booked_on_calendar - sums.calls_cancelled;
   return {
-    close_rate:             sums.calls_shown_up > 0          ? sums.closes              / sums.calls_shown_up           : 0,
-    show_rate:              sums.calls_booked_on_calendar > 0 ? sums.calls_shown_up      / sums.calls_booked_on_calendar : 0,
-    offer_rate:             sums.calls_shown_up > 0          ? sums.offers_made         / sums.calls_shown_up           : 0,
-    dq_rate:                sums.calls_shown_up > 0          ? sums.dqs                 / sums.calls_shown_up           : 0,
-    avg_deal_size:          sums.closes > 0                  ? sums.new_cash_collected      / sums.closes               : 0,
-    contract_value_per_day: days > 0                         ? sums.total_revenue_generated / days                      : 0,
-    cash_per_day:           days > 0                         ? sums.new_cash_collected   / days                         : 0,
+    close_rate:                 sums.calls_shown_up > 0           ? sums.closes              / sums.calls_shown_up           : 0,
+    show_rate:                  sums.calls_booked_on_calendar > 0 ? sums.calls_shown_up      / sums.calls_booked_on_calendar : 0,
+    show_rate_ex_cancellations: bookedExCancelled > 0             ? sums.calls_shown_up      / bookedExCancelled             : 0,
+    offer_rate:                 sums.calls_shown_up > 0           ? sums.offers_made         / sums.calls_shown_up           : 0,
+    dq_rate:                    sums.calls_shown_up > 0           ? sums.dqs                 / sums.calls_shown_up           : 0,
+    avg_deal_size:              sums.closes > 0                   ? sums.new_cash_collected  / sums.closes                   : 0,
+    cash_per_call_booked:       sums.calls_booked_on_calendar > 0 ? sums.new_cash_collected  / sums.calls_booked_on_calendar : 0,
   };
 }
 
@@ -116,7 +117,7 @@ export function aggregateByRep(rows: SalesRow[]): RepStats[] {
       rep_name,
       days_tracked,
       ...sums,
-      ...computeRates(sums, days_tracked),
+      ...computeRates(sums),
     };
   });
 }
@@ -139,7 +140,7 @@ export function aggregateAll(repStats: RepStats[]): RepStats {
     rep_name: 'TOTALS',
     days_tracked: totalDays,
     ...sums,
-    ...computeRates(sums, totalDays),
+    ...computeRates(sums),
   };
 }
 

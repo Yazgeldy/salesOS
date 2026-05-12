@@ -45,11 +45,11 @@ export interface RepStats {
   // Computed rates (never average — always re-computed from sums)
   close_rate: number;             // closes / calls_shown_up
   show_rate: number;              // calls_shown_up / calls_booked_on_calendar
+  show_rate_ex_cancellations: number; // calls_shown_up / (calls_booked_on_calendar - calls_cancelled)
   offer_rate: number;             // offers_made / calls_shown_up
   dq_rate: number;                // dqs / calls_shown_up
   avg_deal_size: number;          // new_cash_collected / closes
-  contract_value_per_day: number; // total_revenue_generated / days_tracked
-  cash_per_day: number;           // new_cash_collected / days_tracked
+  cash_per_call_booked: number;   // new_cash_collected / calls_booked_on_calendar
 }
 
 /** Shape returned by the Modal web endpoint */
