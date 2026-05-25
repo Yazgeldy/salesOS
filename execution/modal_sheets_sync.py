@@ -68,9 +68,16 @@ CLOSER_COL_MAP = {
 
 ROLE_COL = 2  # C  "Are you a Setter or a closer"
 
+# Inbound Closing dashboard — accept only these roles. Excludes "Outbound Closer".
+INBOUND_CLOSER_ROLES = {"inbound closer", "closer"}
 
-def is_closer(role: str) -> bool:
-    return bool(role) and "closer" in role.strip().lower()
+
+def is_inbound_closer(role: str) -> bool:
+    return bool(role) and role.strip().lower() in INBOUND_CLOSER_ROLES
+
+
+def is_test_row(rep: str) -> bool:
+    return rep.strip().lower() in {"test", "test user", "testing"}
 
 
 def parse_money(val) -> float:
@@ -154,15 +161,19 @@ def fetch_sheet_data() -> list:
     records = []
     skipped_role = 0
     skipped_norep = 0
+    skipped_test = 0
     for row in rows[1:]:  # skip header
         padded = (row + [""] * 28)[:28]
         role = padded[ROLE_COL].strip() if padded[ROLE_COL] else ""
-        if not is_closer(role):
+        if not is_inbound_closer(role):
             skipped_role += 1
             continue
         rep = padded[CLOSER_COL_MAP["rep_name"]].strip()
         if not rep:
             skipped_norep += 1
+            continue
+        if is_test_row(rep):
+            skipped_test += 1
             continue
 
         record: dict = {}
@@ -182,8 +193,9 @@ def fetch_sheet_data() -> list:
         records.append(record)
 
     print(
-        f"Parsed {len(records)} closer records; "
-        f"skipped {skipped_role} non-closer rows, {skipped_norep} blank-rep rows"
+        f"Parsed {len(records)} inbound-closer records; "
+        f"skipped {skipped_role} non-inbound, {skipped_norep} blank-rep, "
+        f"{skipped_test} test rows"
     )
     return records
 
