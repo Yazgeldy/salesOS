@@ -28,7 +28,9 @@ data_store = modal.Dict.from_name("sales-dashboard-data", create_if_missing=True
 
 SPREADSHEET_ID = "1DzqXosxLZAmJfE1ksg8sAWi-Dtt0ZjMbZX5OAe4uoMM"
 SHEET_NAME = "Form Responses 1"
-SHEET_RANGE = f"'{SHEET_NAME}'!A:AD"
+# Sheet has 125 cols — read the whole row width, not a truncated range.
+SHEET_RANGE = SHEET_NAME
+ROW_WIDTH = 125
 
 COLUMNS = [
     "rep_name", "date", "outbound_calls_made", "outbound_calls_booked",
@@ -51,26 +53,42 @@ INT_FIELDS = {
     "dqs", "deposits", "closes", "upsells",
 }
 
-# Form Responses 1 (0-indexed) → dashboard schema field
-# Other dashboard fields not collected by the form default to 0 / "".
+# Form Responses 1 (0-indexed) → dashboard schema field.
+# The form has 125 cols; these are the ones inbound closers actually fill.
 CLOSER_COL_MAP = {
-    "rep_name": 1,                   # B  Name
-    "date": 3,                       # D  Date Of Given Stats
-    "calls_booked_on_calendar": 20,  # U
-    "calls_shown_up": 21,            # V
-    "offers_made": 22,               # W
-    "dqs": 23,                       # X  DQ's (financial, bad fit, etc)
-    "deposits": 24,                  # Y
-    "closes": 25,                    # Z
-    "new_cash_collected": 26,        # AA New Cash Collected
-    "total_revenue_generated": 27,   # AB Total Revenue Generated
+    "rep_name": 1,                       # B   Name
+    "date": 3,                           # D   Date Of Given Stats
+    "outbound_calls_made": 83,           # CF  Outbound Calls Made (closer)
+    "outbound_calls_booked": 84,         # CG  Outbound Sets Made (closer)
+    "calls_booked_on_calendar": 20,      # U   Calls Booked On Calendar Today
+    "calls_rescheduled": 70,             # BS  Calls Rescheduled
+    "calls_cancelled": 78,               # CA  Calls Canceled (By Prospect)
+    "calls_shown_up": 21,                # V   Calls Shown Up
+    "offers_made": 22,                   # W   Offers Made
+    "dqs": 23,                           # X   DQ's (financial, bad fit, etc)
+    "deposits": 24,                      # Y   Deposits
+    "closes": 25,                        # Z   Closes
+    "upsells": 31,                       # AF  Upsells
+    "new_cash_collected": 26,            # AA  New Cash Collected
+    "recurring_cash_collected": 32,      # AG  Recurring Cash Collected
+    "upsell_cash_collected": 33,         # AH  Upsell Cash Collected
+    "followup_cash_collected": 71,       # BT  Followup Cash Collected
+    "total_revenue_generated": 27,       # AB  Total Revenue Generated
+    "objections": 34,                    # AI  Objections Faced Today
 }
 
 ROLE_COL = 2  # C  "Are you a Setter or a closer"
 
+# Inbound Closing dashboard — accept only these roles. Excludes "Outbound Closer".
+INBOUND_CLOSER_ROLES = {"inbound closer", "closer"}
 
-def is_closer(role: str) -> bool:
-    return bool(role) and "closer" in role.strip().lower()
+
+def is_inbound_closer(role: str) -> bool:
+    return bool(role) and role.strip().lower() in INBOUND_CLOSER_ROLES
+
+
+def is_test_row(rep: str) -> bool:
+    return rep.strip().lower() in {"test", "test user", "testing"}
 
 
 def parse_money(val) -> float:
@@ -154,15 +172,19 @@ def fetch_sheet_data() -> list:
     records = []
     skipped_role = 0
     skipped_norep = 0
+    skipped_test = 0
     for row in rows[1:]:  # skip header
-        padded = (row + [""] * 28)[:28]
+        padded = (row + [""] * ROW_WIDTH)[:ROW_WIDTH]
         role = padded[ROLE_COL].strip() if padded[ROLE_COL] else ""
-        if not is_closer(role):
+        if not is_inbound_closer(role):
             skipped_role += 1
             continue
         rep = padded[CLOSER_COL_MAP["rep_name"]].strip()
         if not rep:
             skipped_norep += 1
+            continue
+        if is_test_row(rep):
+            skipped_test += 1
             continue
 
         record: dict = {}
@@ -182,8 +204,9 @@ def fetch_sheet_data() -> list:
         records.append(record)
 
     print(
-        f"Parsed {len(records)} closer records; "
-        f"skipped {skipped_role} non-closer rows, {skipped_norep} blank-rep rows"
+        f"Parsed {len(records)} inbound-closer records; "
+        f"skipped {skipped_role} non-inbound, {skipped_norep} blank-rep, "
+        f"{skipped_test} test rows"
     )
     return records
 
