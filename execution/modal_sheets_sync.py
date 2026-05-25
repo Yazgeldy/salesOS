@@ -91,6 +91,35 @@ def parse_int(val) -> int:
         return 0
 
 
+def parse_date(val) -> str:
+    """Normalize a sheet date cell to ISO YYYY-MM-DD. Returns "" if unparseable."""
+    from datetime import date, timedelta
+
+    if val is None:
+        return ""
+    s = str(val).strip()
+    if not s:
+        return ""
+
+    # Google Sheets serial number (days since 1899-12-30)
+    try:
+        n = float(s)
+        if 1 <= n <= 80000:
+            return (date(1899, 12, 30) + timedelta(days=int(n))).isoformat()
+    except ValueError:
+        pass
+
+    # Common string formats
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m/%d/%y", "%-m/%-d/%Y", "%d/%m/%Y"):
+        try:
+            from datetime import datetime
+            return datetime.strptime(s, fmt).date().isoformat()
+        except ValueError:
+            continue
+
+    return ""
+
+
 def get_sheets_service():
     """Builds a Google Sheets API service using the stored OAuth refresh token."""
     from google.oauth2.credentials import Credentials
@@ -142,6 +171,8 @@ def fetch_sheet_data() -> list:
             val = padded[src_idx] if src_idx is not None else ""
             if col == "rep_name":
                 record[col] = rep
+            elif col == "date":
+                record[col] = parse_date(val)
             elif col in MONEY_FIELDS:
                 record[col] = parse_money(val)
             elif col in INT_FIELDS:
