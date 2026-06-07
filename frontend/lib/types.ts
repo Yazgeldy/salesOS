@@ -50,6 +50,7 @@ export interface RepStats {
   dq_rate: number;                // dqs / calls_shown_up
   avg_deal_size: number;          // new_cash_collected / closes
   cash_per_call_booked: number;   // new_cash_collected / calls_booked_on_calendar
+  roas: number;                   // cash_per_call_booked / 250 (return on $250 cost-per-call)
 }
 
 /** Shape returned by the Modal web endpoint */

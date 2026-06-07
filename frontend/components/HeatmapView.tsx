@@ -2,18 +2,19 @@
 
 import { useMemo, useState } from 'react';
 import type { RepStats } from '../lib/types';
-import { aggregateAll, formatCurrency, formatPercent, formatNumber, getHeatmapColor } from '../lib/utils';
+import { aggregateAll, formatCurrency, formatPercent, formatNumber, formatMultiple, getHeatmapColor } from '../lib/utils';
 
 interface KpiRowDef {
   key: keyof RepStats;
   label: string;
   higherIsBetter: boolean;
-  format: 'currency' | 'percent' | 'number';
+  format: 'currency' | 'percent' | 'number' | 'multiple';
 }
 
 const KPI_ROWS: KpiRowDef[] = [
   { key: 'days_tracked',                 label: 'Days Tracked',                    higherIsBetter: true,  format: 'number'   },
   { key: 'cash_per_call_booked',         label: 'Cash Collected/Call Booked',      higherIsBetter: true,  format: 'currency' },
+  { key: 'roas',                         label: 'ROAS',                            higherIsBetter: true,  format: 'multiple' },
   { key: 'outbound_calls_made',          label: 'Outbound Made',                   higherIsBetter: true,  format: 'number'   },
   { key: 'outbound_calls_booked',        label: 'Outbound Booked',                 higherIsBetter: true,  format: 'number'   },
   { key: 'calls_booked_on_calendar',     label: 'Calls Booked',                    higherIsBetter: true,  format: 'number'   },
@@ -38,9 +39,10 @@ const KPI_ROWS: KpiRowDef[] = [
   { key: 'total_revenue_generated',      label: 'Total Contract Value',            higherIsBetter: true,  format: 'currency' },
 ];
 
-function fmtValue(value: number, format: 'currency' | 'percent' | 'number'): string {
+function fmtValue(value: number, format: 'currency' | 'percent' | 'number' | 'multiple'): string {
   if (format === 'currency') return formatCurrency(value);
   if (format === 'percent')  return formatPercent(value);
+  if (format === 'multiple') return formatMultiple(value);
   return formatNumber(value);
 }
 

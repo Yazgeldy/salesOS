@@ -81,8 +81,9 @@ const SUM_FIELDS = [
 
 type SumKey = typeof SUM_FIELDS[number];
 
-function computeRates(sums: Record<SumKey, number>): Pick<RepStats, 'close_rate' | 'show_rate' | 'show_rate_ex_cancellations' | 'offer_rate' | 'dq_rate' | 'avg_deal_size' | 'cash_per_call_booked'> {
+function computeRates(sums: Record<SumKey, number>): Pick<RepStats, 'close_rate' | 'show_rate' | 'show_rate_ex_cancellations' | 'offer_rate' | 'dq_rate' | 'avg_deal_size' | 'cash_per_call_booked' | 'roas'> {
   const bookedExCancelled = sums.calls_booked_on_calendar - sums.calls_cancelled;
+  const cash_per_call_booked = sums.calls_booked_on_calendar > 0 ? sums.new_cash_collected / sums.calls_booked_on_calendar : 0;
   return {
     close_rate:                 sums.calls_shown_up > 0           ? sums.closes              / sums.calls_shown_up           : 0,
     show_rate:                  sums.calls_booked_on_calendar > 0 ? sums.calls_shown_up      / sums.calls_booked_on_calendar : 0,
@@ -90,7 +91,8 @@ function computeRates(sums: Record<SumKey, number>): Pick<RepStats, 'close_rate'
     offer_rate:                 sums.calls_shown_up > 0           ? sums.offers_made         / sums.calls_shown_up           : 0,
     dq_rate:                    sums.calls_shown_up > 0           ? sums.dqs                 / sums.calls_shown_up           : 0,
     avg_deal_size:              sums.closes > 0                   ? sums.new_cash_collected  / sums.closes                   : 0,
-    cash_per_call_booked:       sums.calls_booked_on_calendar > 0 ? sums.new_cash_collected  / sums.calls_booked_on_calendar : 0,
+    cash_per_call_booked,
+    roas:                       cash_per_call_booked / 250,
   };
 }
 
@@ -190,6 +192,11 @@ export function formatPercent(n: number): string {
 export function formatNumber(n: number): string {
   if (!isFinite(n)) return '0';
   return Math.round(n).toLocaleString('en-US');
+}
+
+export function formatMultiple(n: number): string {
+  if (!isFinite(n)) return '0.00x';
+  return n.toFixed(2) + 'x';
 }
 
 // ─── Utility ───────────────────────────────────────────────────────────────────
